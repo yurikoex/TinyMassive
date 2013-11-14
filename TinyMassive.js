@@ -2,6 +2,7 @@ var redis = require('redis');
 var _ = require('underscore');
 var async = require('async');
 var names = require('./namegenerator').load(_);
+var wid = require('wid');
 
 var TinyMassive = {
     //Private Methods
@@ -57,15 +58,23 @@ var TinyMassive = {
             callback();
         });
 
-        this.id = names.newWordId();
+        this.id = wid.NewWID(8);
 
         this.worldsCreated = 0;
         this.zonesCreated = 0;
         this.playersCreated = 0;
         this.mobsCreated = 0;
+
+        this.kWorlds = [];
+        this.kZones = [];
+        this.kStartZones = [];
+        this.kWarps = [];
+        this.kPlayers = [];
+        this.kMobPositons = [];
+        this.kPlayerPositions = [];
     },
     World : function(name){
-        var id = names.newWordId();
+        var id = wid.NewWID(8);
         id = this.id + '_' + id;
         this.client.incr("Worlds");
         var name = name || names.world();
@@ -77,10 +86,10 @@ var TinyMassive = {
         };
     },
     Zone : function(parentId, name){
-        var id = names.newWordId();
+        var id = wid.NewWID(8);
         this.client.incr("Zones");
         id = parentId + '_' + id;
-        var name = name || names.zone();;
+        var name = name || names.zone();
         return {
             id : id,
             parentid : parentId,
@@ -92,7 +101,7 @@ var TinyMassive = {
         };
     },
     Warp : function(source,dest){
-        var id = names.newWordId();
+        var id = wid.NewWID(8);
         this.client.incr("Warps");
         return {
             id : id,
@@ -105,7 +114,7 @@ var TinyMassive = {
         }
     },
     Player : function(name){
-        var id = names.newWordId();
+        var id = wid.NewWID(8);
         this.client.incr("Players");
         var name = name || 'Unnamed Player '+id;
         return {
@@ -119,7 +128,7 @@ var TinyMassive = {
         };
     },
     Mob : function(name){
-        var id = names.newWordId();
+        var id = wid.NewWID(8);
         this.client.incr("Mobs");
         var name = name || 'Unnamed Mob '+id;
         return {
@@ -162,27 +171,27 @@ var TinyMassive = {
                 console.log('PlayerWarp hgetall Error: '+JSON.stringify(err));
             else
             {
-                _this.client.set('PlayerPosition:'+warp.sourceid+':'+playerId,{x:warp.destx,z:warp.destz});
-                _this.client.rename('PlayerPosition:'+warp.sourceid+':'+playerId,'PlayerPosition:'+warp.destid+':'+playerId);
+                _this.client.hdel('PlayerPosition:'+warp.sourceid,'Player:'+playerId);
+                _this.client.hset('PlayerPosition:'+warp.destid,'Player:'+playerId,JSON.stringify({x:warp.destx,z:warp.destz}));
                 _this.client.hincrby('Zone:'+warp.sourceid, 'playing', -1);
                 _this.client.hincrby('Zone:'+warp.destid, 'playing', 1);
-                _this.client.hincrby('Player:'+playerId, 'zone', 'Zone:'+warp.destid);
+                _this.client.hset('Player:'+playerId, 'zone', 'Zone:'+warp.destid);
             }
         });
     },
     UpdatePlayerPosition : function(playerId,zoneId,point,callback){
-        this.client.set('PlayerPosition:'+zoneId+':'+playerId,JSON.stringify(point),callback);
+        this.client.hset('PlayerPosition:'+zoneId,'Player:'+playerId,JSON.stringify(point),callback);
     },
     GetPlayerPosition : function(playerId,zoneId,callback){
-        this.client.get('PlayerPosition:'+zoneId+':'+playerId,function(err,reply){
+        this.client.hget('PlayerPosition:'+zoneId,'Player:'+playerId,function(err,reply){
             callback(err,JSON.parse(reply));
         });
     },
     UpdateMobPosition : function(mobId,zoneId,point,callback){
-        this.client.set('MobPosition:'+zoneId+':'+mobId,JSON.stringify(point),callback);
+        this.client.hset('MobPosition:'+zoneId,'Player:'+mobId,JSON.stringify(point),callback);
     },
     GetMobPosition : function(mobId,zoneId,callback){
-        this.client.get('MobPosition:'+zoneId+':'+mobId,function(err,reply){
+        this.client.hget('MobPosition:'+zoneId,'Player:'+mobId,function(err,reply){
             callback(err,JSON.parse(reply));
         });
     },

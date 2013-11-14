@@ -7,6 +7,7 @@ var TinyMassive = require('./TinyMassive');
 var _ = require('underscore');
 var async = require('async');
 var names = require('./namegenerator').load(_);
+var wid = require('wid');
 
 var numPlayers = 10;
 var numZones = 10;
@@ -239,15 +240,43 @@ function GeneratePlayers(){
 
 };
 
+function Logging(err){
+    console.log('ThereCanOnlyBeOne Error: '+JSON.stringify(err));
+}
+
 function StartServer(){
     console.log('Start Server');
     TinyMassive.events.unsubscribe("Loading:"+TinyMassive.id);
 
-    async.forever(MoveMobs);
-    async.forever(MovePlayers);
-    async.forever(Combat);
+    //Game Loop to sim play
+    async.forever(function(callback){
+        async.series({
+                MoveMobs: function(callback){
+                    setTimeout(function(){
+                        callback(null, 1);
+                    }, 100);
+                },
+                MovePlayers: function(callback){
+                    setTimeout(function(){
+                        callback(null, 2);
+                    }, 100);
+                },
+                Combat: function(callback){
+                    setTimeout(function(){
+                        callback(null, 3);
+                    }, 100);
+                }
+            },
+            function(err, results) {
+                if(err)
+                    console.log('Game Loop Error: '+JSON.stringify(err));
+                console.log('Game Loop Results: '+JSON.stringify(results));
+                callback(err);
 
+            });
+    },Logging);
 
+    var count = 0;
 };
 
 TinyMassive.Init(true,SpinupServer);
@@ -274,3 +303,5 @@ function SpinupServer(){
 
     TinyMassive.events.subscribe("Loading:"+TinyMassive.id);
 };
+
+

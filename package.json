@@ -1,8 +1,8 @@
 {
-  "name": "TinyMassive",
-  "version": "0.0.0",
+  "name": "tiny-massive",
+  "version": "0.0.1",
   "description": "Tiny MMO Server",
-  "main": "ThereCanOnlyBeOne.js",
+  "main": "TinyMassive.js",
   "dependencies": {
     "async": "~0.2.9",
     "hiredis": "~0.1.15",
