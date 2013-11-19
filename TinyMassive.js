@@ -1,5 +1,6 @@
 var redis = require('redis');
-var _ = require('underscore');
+//var _ = require('underscore');
+var _ = require('lodash');
 var async = require('async');
 var names = require('./namegenerator').load(_);
 var wid = require('wid');

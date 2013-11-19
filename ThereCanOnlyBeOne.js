@@ -4,12 +4,13 @@
  */
 
 var TinyMassive = require('./TinyMassive');
-var _ = require('underscore');
+//var _ = require('underscore');
+var _ = require('lodash');
 var async = require('async');
 var names = require('./namegenerator').load(_);
 
-var numPlayersPerWorld = 100;
-var numZones = 10;
+var numPlayersPerWorld = 1000;
+var numZones = 25;
 var numWorlds = 10;
 var numWarpsPerZone = 10;
 var numMobsPerZone = 100;
@@ -261,11 +262,14 @@ function StartServer(){
     //Game Loop to sim play
     var loops = 0;
     async.forever(function(callback){
-        var stamp = new Date().getTime();
+        var glStart = new Date().getTime();
         var playerPositions = [];
         var mobPositions = [];
         async.series({
                 Move: function(callback1){
+                    var moveStart = new Date().getTime();
+                    var pmoves =0;
+                    var mmoves =0;
                     //Move All Mobs
                     var mobsMoved = 0;
                     var playersMoved = 0;
@@ -305,6 +309,7 @@ function StartServer(){
                                                     console.log(JSON.stringify(err));
                                                 }
                                                 callback3(err);
+                                                mmoves++;
                                             });
                                         },function(err){
                                             if(err){
@@ -328,6 +333,7 @@ function StartServer(){
                                                     console.log(JSON.stringify(err));
                                                 }
                                                 callback5(err);
+                                                pmoves++;
                                             });
                                         },function(err){
                                             if(err){
@@ -351,11 +357,17 @@ function StartServer(){
                         if(err){
                             console.log(JSON.stringify(err));
                         }
-                        callback1(err, 1);
+                        callback1(err, {
+                            PlayerMoves:pmoves,
+                            MobMoves:mmoves,
+                            moveTime:" Moves completed in (" + (new Date().getTime() - moveStart) + ")ms"
+                        });
                     });
                 },
 
                 WarpPlayers: function(callbackx){
+                    var warpStart = new Date().getTime();
+                    var pwarps = 0;
                     async.eachLimit(TinyMassive.kWarps,10,function(warpKey,callbackz){
                         TinyMassive.GetWarpByKey(warpKey,function(err,warp){
                             var matches = _.filter(playerPositions,function(player){
@@ -367,7 +379,7 @@ function StartServer(){
                             });
                             if(matches.length !=0)
                             {
-                                console.log("PlayerWarped!: "+JSON.stringify(matches));
+                                //console.log("PlayerWarped!: "+JSON.stringify(matches));
                                 async.eachSeries(matches,function(player,callbacka){
                                     TinyMassive.PlayerUseWarp(player.ekey,warp.id,function(err,reply){
                                         if(err){
@@ -379,6 +391,7 @@ function StartServer(){
                                                 z:warp.destz
                                             }};
                                         callbacka(err);
+                                        pwarps++;
                                     });
                                 },function(err){
                                     if(err){
@@ -393,11 +406,15 @@ function StartServer(){
                             }
                         });
                     },function(err){
-                        callbackx(err, 2);
+                        callbackx(err, {
+                            PlayersWarped:pwarps,
+                            warpTime:" Warps completed in (" + (new Date().getTime() - warpStart) + ")ms"
+                        });
                     });
                 },
                 Combat: function(callback){
-
+                    var combatStart = new Date().getTime();
+                    var bestWarrior = {};
                     var combatants = _.reduce(_.uniq(_.pluck(_.union(playerPositions,mobPositions),"zoneid")), function(memo, zoneid){
                         var playersInZone = _.filter(playerPositions,function(pos){return pos.zoneid==zoneid;});
                         var mobsInZone = _.filter(mobPositions,function(pos){return pos.zoneid==zoneid;});
@@ -418,8 +435,8 @@ function StartServer(){
 
                     var CombatEngine = {
                         swing : function (attacker,defender){
-                            var die = Math.random()*attacker.attack;
-                            return die>.5*defender.defense;
+                            var die = TinyMassive.GetRandomInt(1,20)+attacker.attack;
+                            return die>=10+defender.defense;
                         },
                         hit : function (damage,defender){
                             defender.health = defender.health-damage;
@@ -427,16 +444,18 @@ function StartServer(){
                         }
                     };
 
+
+
                     async.eachLimit(combatants,100,function(combat,callback){
                         var player = {};
                         var mob = {};
-                        async.series([function(callback){
-                            TinyMassive.GetPlayerByKey(combat.playerKey, function(err,reply){
-                                player=reply;
-                                callback(err,reply);
-                            });
-                        }
-                            ,
+                        async.series([
+                            function(callback){
+                                TinyMassive.GetPlayerByKey(combat.playerKey, function(err,reply){
+                                    player=reply;
+                                    callback(err,reply);
+                                });
+                            },
                             function(callback){
                                 TinyMassive.GetMobByKey(combat.mobKey, function(err,reply){
                                     mob=reply;
@@ -444,6 +463,8 @@ function StartServer(){
                                 });
                             }
                         ],function(err,battle){
+                            var fightResults = {biggestHit:0,level:0,winner:{},results:[]};
+
                             while(battle){
                                 var die = Math.random();
                                 if(die>.5)
@@ -451,11 +472,18 @@ function StartServer(){
                                 if(CombatEngine.swing(battle[0],battle[1]))
                                 {
                                     var damage = 1;
+                                    if(Math.random()>.9)
+                                        damage = TinyMassive.GetRandomInt(1,battle[0].attack);
+                                    if(damage>fightResults.biggestHit)
+                                        fightResults.biggestHit=damage;
+                                    fightResults.results.push(battle[0].name + ' hit ' + battle[1].name+ ' for '+damage + ' damage');
                                     if(CombatEngine.hit(damage,battle[1]))
                                     {
-                                        console.log('Level '+battle[0].level +' '+ battle[0].name + ' killed '+'Level '+battle[1].level +' '+ battle[1].name);
+                                        fightResults.level = battle[0].level;
+                                        fightResults.winner = battle[0];
+                                        fightResults.results.push('Level '+battle[0].level +' '+ battle[0].name + ' killed '+'Level '+battle[1].level +' '+ battle[1].name);
                                         if(combat.playerKey.indexOf(battle[0].id)!=-1){
-                                            console.log(battle[1].exp +'exp received!');
+                                            fightResults.results.push(battle[1].exp +'exp received!');
                                             TinyMassive.LevelUpPlayer(player,mob,function(err,reply){
                                                 if(err)
                                                 console.log(JSON.stringify(err));
@@ -469,31 +497,32 @@ function StartServer(){
                                             });
                                             TinyMassive.KillPlayer(player, combat.zoneid);
                                         }
-
                                         battle = false;
+                                    }else{
+                                        fightResults.results.push(battle[0].name + ' misses...');
                                     }
-
-
                                 }
-//                                else
-//                                { console.log(battle[0].name + ' misses...');}
+                            }
+                            if(bestWarrior.level == undefined || bestWarrior.level == fightResults.level)
+                            {
+                                bestWarrior = fightResults;
                             }
                             callback(err);
                         });
-
-
-
-
-
                     },function(err){
-                        callback(null, 3);
+                        callback(err, {
+                            TotalCombat:combatants.length,
+                            BestWarrior:bestWarrior,
+                            combatTime:" Combat completed in (" + (new Date().getTime() - combatStart) + ")ms"
+                        });
                     });
                 }
             },
             function(err, results) {
                 if(err)
                     console.log('Game Loop Error: '+JSON.stringify(err));
-                console.log(loops++ + " Game Loops, completed in (" + (new Date().getTime() - stamp) + ")ms");
+                console.log(loops++ + " Game Loop completed in (" + (new Date().getTime() - glStart) + ")ms");
+                console.log(JSON.stringify(results, null, '\t'));
                 callback(err);
 
             });
@@ -511,7 +540,7 @@ function SpinupServer(){
     });
 
     TinyMassive.events.on("message", function(channel, message){
-        console.log('Message!');
+        //console.log('Message!');
         if(message==="Worlds")
             GenerateZones();
         if(message==="Zones")

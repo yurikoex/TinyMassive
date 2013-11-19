@@ -1,14 +1,14 @@
 {
   "name": "tiny-massive",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "description": "Tiny MMO Server",
   "main": "TinyMassive.js",
   "dependencies": {
     "async": "~0.2.9",
     "hiredis": "~0.1.15",
     "redis": "~0.9.0",
-    "underscore": "~1.5.2",
-    "wid": "~0.0.5"
+    "lodash": "~2.3.0",
+    "wid": "~0.0.9"
   },
   "devDependencies": {},
   "scripts": {
@@ -22,7 +22,7 @@
     "mmo",
     "async",
     "redis",
-    "underscore",
+    "lodash",
     "game",
     "server"
   ],
