@@ -46,9 +46,9 @@ var TinyMassive = {
         this.client = redis.createClient();
 
         this.events = redis.createClient();
-        this.keyEvents = redis.createClient();
+        this.keyAddedEvents = redis.createClient();
 
-        this.keyEvents.on("message", function(channel, message){
+        this.keyAddedEvents.on("message", function(channel, message){
             if(message.indexOf('World:')!=-1)
                 _this.kWorlds.push(message);
             if(message.indexOf('Zone:')!=-1)
@@ -65,7 +65,28 @@ var TinyMassive = {
                 _this.kPlayerPositions.push(message);
         });
 
-        this.keyEvents.subscribe("KeyAdded");
+        this.keyAddedEvents.subscribe("KeyAdded");
+
+        this.keyRemovedEvents = redis.createClient();
+
+        this.keyRemovedEvents.on("message", function(channel, message){
+            if(message.indexOf('World:')!=-1)
+                _this.kWorlds = _.reject(_this.kWorlds, function(k){ return k == message; });
+            if(message.indexOf('Zone:')!=-1)
+                _this.kZones = _.reject(_this.kZones, function(k){ return k == message; });
+            if(message.indexOf('Warp:')!=-1)
+                _this.kWarps = _.reject(_this.kWarps, function(k){ return k == message; });
+            if(message.indexOf('Player:')!=-1)
+                _this.kPlayers = _.reject(_this.kPlayers, function(k){ return k == message; });
+            if(message.indexOf('Mob:')!=-1)
+                _this.kMobs = _.reject(_this.kMobs, function(k){ return k == message; });
+            if(message.indexOf('MobPosition:')!=-1)
+                _this.kMobPositions = _.reject(_this.kMobPositions, function(k){ return k == message; });
+            if(message.indexOf('PlayerPosition:')!=-1)
+                _this.kPlayerPositions = _.reject(_this.kPlayerPositions, function(k){ return k == message; });
+        });
+
+        this.keyRemovedEvents.subscribe("KeyRemoved");
 
         this.widLength = 10;
 
@@ -280,7 +301,7 @@ var TinyMassive = {
             id : id,
             name : name,
             level : 1,
-            exp : 0,
+            exp : 1,
             attack : 1,
             defense : 1,
             health : 1
@@ -315,7 +336,7 @@ var TinyMassive = {
     UpdateZone : function(zone,callback){
         this.client.hmset('Zone:'+zone.id,zone,callback);
     },
-    PlayerUseWarp : function(playerKey,warpId){
+    PlayerUseWarp : function(playerKey,warpId,callback){
         var _this = this;
         this.client.hgetall('Warp:'+warpId,function(err,warp){
             if(err)
@@ -327,8 +348,11 @@ var TinyMassive = {
                 _this.client.hset('PlayerPosition:'+warp.destid,playerKey,JSON.stringify({x:warp.destx,z:warp.destz}));
                 _this.client.hincrby('Zone:'+warp.sourceid, 'playing', -1);
                 _this.client.hincrby('Zone:'+warp.destid, 'playing', 1);
-                _this.client.hset(playerKey, 'zone', 'Zone:'+warp.destid);
+                _this.client.hset(playerKey, 'zone', 'Zone:'+warp.destid,function(err,reply){
+                    callback(err,reply);
+                });
             }
+
         });
     },
     UpdatePlayerPosition : function(playerId,zoneId,point,callback){
@@ -363,6 +387,9 @@ var TinyMassive = {
             callback(err,reply);
         });
     },
+    GetMobByKey : function(mobKey,callback){
+        this.client.hgetall(mobKey,callback);
+    },
     UpdatePlayer : function(player,callback){
         this.client.hmset('Player:'+player.id,player,callback);
     },
@@ -372,9 +399,42 @@ var TinyMassive = {
     GetPlayer : function(playerId,callback){
         this._getHashFromKey("GetPlayer",'Player:'+playerId,callback);
     },
+    GetPlayerByKey : function(playerKey,callback){
+        this.client.hgetall(playerKey,callback);
+    },
     GetPlayers : function(callback){
         var keyPattern = 'Player:*';
         this._getHashesFromKeyPattern('GetPlayers',keyPattern,callback);
+    },
+    LevelUpPlayer : function(player,mob,callback){
+        player.level++;
+        player.health++;
+        player.attack++;
+        player.defense++;
+        player.exp = player.exp + mob.exp;
+        this.UpdatePlayer(player,callback);
+
+    },
+    LevelUpMob : function(mob,callback){
+        mob.level++;
+        mob.health++;
+        mob.attack++;
+        mob.defense++;
+        mob.exp++;
+        this.UpdateMob(mob,callback);
+    },
+    KillPlayer : function(player,zoneid){
+        this.client.hdel('PlayerPosition:'+zoneid,this.KeyTypeEnum.Player+player.id);
+        this.client.del(this.KeyTypeEnum.Player+player.id);
+        this.client.publish('KeyRemoved',this.KeyTypeEnum.Player+player.id);
+        this.client.hincrby('Zone:'+zoneid, 'playing', -1);
+    },
+    KillMob : function(mob,zoneid){
+        this.client.hdel('MobPosition:'+zoneid,this.KeyTypeEnum.Mob+mob.id);
+        this.client.del(this.KeyTypeEnum.Mob+mob.id);
+        this.client.publish('KeyRemoved',this.KeyTypeEnum.Mob+mob.id);
+
+        //spawn another later... wahahaha
     },
     GetRandomInt : function(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;

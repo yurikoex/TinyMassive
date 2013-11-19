@@ -8,11 +8,11 @@ var _ = require('underscore');
 var async = require('async');
 var names = require('./namegenerator').load(_);
 
-var numPlayers = 10;
+var numPlayersPerWorld = 100;
 var numZones = 10;
 var numWorlds = 10;
 var numWarpsPerZone = 10;
-var numMobsPerZone = 10;
+var numMobsPerZone = 100;
 
 function GenerateWorlds(){
     console.log('GenerateWorlds');
@@ -23,7 +23,7 @@ function GenerateWorlds(){
             if(err)
                 console.log('Add World Error: '+JSON.stringify(err));
             else
-                console.log('Add World: '+JSON.stringify(w));
+//                console.log('Add World: '+JSON.stringify(w));
             callback(err);
         });
     },function(err){
@@ -55,7 +55,7 @@ function GenerateZones(){
                     if(err2)
                         console.log('Update World Zones Counter Error: '+JSON.stringify(err2));
                     callback(zone);
-                    console.log('Added Zone '+JSON.stringify(zone));
+//                    console.log('Added Zone '+JSON.stringify(zone));
                 });
             }
         });
@@ -119,7 +119,7 @@ function GenerateWarps(){
                             });
                         TinyMassive.UpdateWarp(warp,function(err4,reply){
                             callback3(err4)
-                            console.log('Added Warp '+JSON.stringify(warp));
+//                            console.log('Added Warp '+JSON.stringify(warp));
                         });
                     },function(err3){
                         callback2(err3);
@@ -146,15 +146,15 @@ function GenerateMobs(){
     TinyMassive.GetWorlds(true,function(worlds){
         async.eachLimit(worlds,10,function(world,callback){
             TinyMassive.GetZones('Zone:'+world.value.id+'*',function(zones){
-                async.eachLimit(zones,10,function(zone,callback2){
-                    async.eachLimit(new Array(numMobsPerZone),10,function(item,callback3){
+                async.eachLimit(zones,100,function(zone,callback2){
+                    async.eachLimit(new Array(numMobsPerZone),100,function(item,callback3){
                         var mob = TinyMassive.Mob(names.mob());
                         TinyMassive.UpdateMob(mob,function(err4,reply){
                             if(err4)
                                 callback3(err4);
                             else
                             {
-                                console.log('Added Mob '+JSON.stringify(mob));
+//                                console.log('Added Mob '+JSON.stringify(mob));
                                 TinyMassive.UpdateMobPosition(mob.id,zone.value.id,{
                                     x:Math.floor(Math.random() * (100 - 0 + 1) + 0),
                                     z:Math.floor(Math.random() * (100 - 0 + 1) + 0)
@@ -191,7 +191,7 @@ function GeneratePlayers(){
             TinyMassive.GetZones('Zone:'+world.value.id+'*',function(zones){
                 var starterZones = _.filter(zones,function(zone){ return zone.value.subzones>0; });
                 async.eachLimit(starterZones,1,function(zone,callback2){
-                    async.eachLimit(new Array(numPlayers),1,function(item,callback3){
+                    async.eachLimit(new Array(numPlayersPerWorld),1,function(item,callback3){
                         var player = TinyMassive.Player(names.player());
                         TinyMassive.UpdatePlayer(player,function(err,reply){
                             if(err)
@@ -228,7 +228,7 @@ function GeneratePlayers(){
                                     }
                                 ], callback3);
                             }
-                            console.log('Added Player '+JSON.stringify(player));
+//                            console.log('Added Player '+JSON.stringify(player));
                         });
                     },function(err3){
                         callback2(err3);
@@ -261,10 +261,11 @@ function StartServer(){
     //Game Loop to sim play
     var loops = 0;
     async.forever(function(callback){
+        var stamp = new Date().getTime();
         var playerPositions = [];
+        var mobPositions = [];
         async.series({
                 Move: function(callback1){
-
                     //Move All Mobs
                     var mobsMoved = 0;
                     var playersMoved = 0;
@@ -298,7 +299,7 @@ function StartServer(){
                                             var point = JSON.parse(zonePositions[property]);
                                             point.x = MinMaxWidth(TinyMassive.GetRandomInt(point.x-1,point.x+1));
                                             point.z = MinMaxHeight(TinyMassive.GetRandomInt(point.z-1,point.z+1));
-
+                                            mobPositions.push({zoneid:zone.id,ekey:property,point:point});
                                             TinyMassive.UpdateMobPositionByField(property,zone.id,point,function(err,reply){
                                                 if(err){
                                                     console.log(JSON.stringify(err));
@@ -321,7 +322,7 @@ function StartServer(){
                                             var point = JSON.parse(zonePositions[property]);
                                             point.x = MinMaxWidth(TinyMassive.GetRandomInt(point.x-1,point.x+1));
                                             point.z = MinMaxHeight(TinyMassive.GetRandomInt(point.z-1,point.z+1));
-                                            playerPositions.push({zoneid:zone.id,playerKey:property,point:point});
+                                            playerPositions.push({zoneid:zone.id,ekey:property,point:point});
                                             TinyMassive.UpdatePlayerPositionByField(property,zone.id,point,function(err,reply){
                                                 if(err){
                                                     console.log(JSON.stringify(err));
@@ -355,56 +356,144 @@ function StartServer(){
                 },
 
                 WarpPlayers: function(callbackx){
-//                    async.eachLimit(TinyMassive.kWarps,10,function(warpKey,callbackz){
-//                        TinyMassive.GetWarpByKey(warpKey,function(err,warp){
-//                            var matches = _.filter(playerPositions,function(player){
-//                                if(warp.sourceid==player.zoneid &&
-//                                    warp.sourcex==player.point.x &&
-//                                    warp.sourcez==player.point.z){
-//                                    return player;
-//                                }
-//                            });
-//                            if(matches.length !=0)
-//                            {
-//                                async.eachSeries(matches,function(player,callbacka){
-//                                    TinyMassive.PlayerUseWarp(player.playerKey,warp.id,function(err,reply){
-//                                        if(err){
-//                                            console.log(JSON.stringify(err));
-//                                        }
-//                                        callbacka(err);
-//                                    },function(err){
-//                                        if(err){
-//                                            console.log(JSON.stringify(err));
-//                                        }
-//                                        callbackz(err);
-//                                    });
-//                                });
-//                            }
-//                            else
-//                            {
-//                                callbackz();
-//                            }
-//
-//
-//
-//                        });
-//                    },function(err){
-//                        callbackx(err, 2);
-//                    });
-                    setTimeout(function(){
-                        callbackx(null, 2);
-                    }, 100);
+                    async.eachLimit(TinyMassive.kWarps,10,function(warpKey,callbackz){
+                        TinyMassive.GetWarpByKey(warpKey,function(err,warp){
+                            var matches = _.filter(playerPositions,function(player){
+                                if(warp.sourceid==player.zoneid &&
+                                    warp.sourcex==player.point.x &&
+                                    warp.sourcez==player.point.z){
+                                    return player;
+                                }
+                            });
+                            if(matches.length !=0)
+                            {
+                                console.log("PlayerWarped!: "+JSON.stringify(matches));
+                                async.eachSeries(matches,function(player,callbacka){
+                                    TinyMassive.PlayerUseWarp(player.ekey,warp.id,function(err,reply){
+                                        if(err){
+                                            console.log(JSON.stringify(err));
+                                        }
+                                        else
+                                            playerPositions[playerPositions.indexOf(player)] = {zoneid:warp.destid,ekey:player.ekey,point:{
+                                                x:warp.destx,
+                                                z:warp.destz
+                                            }};
+                                        callbacka(err);
+                                    });
+                                },function(err){
+                                    if(err){
+                                        console.log(JSON.stringify(err));
+                                    }
+                                    callbackz(err);
+                                });
+                            }
+                            else
+                            {
+                                callbackz();
+                            }
+                        });
+                    },function(err){
+                        callbackx(err, 2);
+                    });
                 },
                 Combat: function(callback){
-                    setTimeout(function(){
+
+                    var combatants = _.reduce(_.uniq(_.pluck(_.union(playerPositions,mobPositions),"zoneid")), function(memo, zoneid){
+                        var playersInZone = _.filter(playerPositions,function(pos){return pos.zoneid==zoneid;});
+                        var mobsInZone = _.filter(mobPositions,function(pos){return pos.zoneid==zoneid;});
+                        _.each(playersInZone,function(playerPos){
+                            var mob = _.find(mobsInZone,function(mob){return mob.point.x == playerPos.point.x && mob.point.z == playerPos.point.z;});//mobsInZone.indexOf(playerPos.point);
+                            if(mob)
+                            {
+                                memo.push({
+                                    zoneid:zoneid,
+                                    playerKey:playerPos.ekey,
+                                    mobKey:mob.ekey
+                                })
+                            }
+                        });
+                        return memo;
+                    }, []);
+
+
+                    var CombatEngine = {
+                        swing : function (attacker,defender){
+                            var die = Math.random()*attacker.attack;
+                            return die>.5*defender.defense;
+                        },
+                        hit : function (damage,defender){
+                            defender.health = defender.health-damage;
+                            return defender.health<=0;
+                        }
+                    };
+
+                    async.eachLimit(combatants,100,function(combat,callback){
+                        var player = {};
+                        var mob = {};
+                        async.series([function(callback){
+                            TinyMassive.GetPlayerByKey(combat.playerKey, function(err,reply){
+                                player=reply;
+                                callback(err,reply);
+                            });
+                        }
+                            ,
+                            function(callback){
+                                TinyMassive.GetMobByKey(combat.mobKey, function(err,reply){
+                                    mob=reply;
+                                    callback(err,reply);
+                                });
+                            }
+                        ],function(err,battle){
+                            while(battle){
+                                var die = Math.random();
+                                if(die>.5)
+                                    battle = battle.reverse();
+                                if(CombatEngine.swing(battle[0],battle[1]))
+                                {
+                                    var damage = 1;
+                                    if(CombatEngine.hit(damage,battle[1]))
+                                    {
+                                        console.log('Level '+battle[0].level +' '+ battle[0].name + ' killed '+'Level '+battle[1].level +' '+ battle[1].name);
+                                        if(combat.playerKey.indexOf(battle[0].id)!=-1){
+                                            console.log(battle[1].exp +'exp received!');
+                                            TinyMassive.LevelUpPlayer(player,mob,function(err,reply){
+                                                if(err)
+                                                console.log(JSON.stringify(err));
+                                            });
+                                            TinyMassive.KillMob(mob,combat.zoneid);
+                                        }
+                                        else{
+                                            TinyMassive.LevelUpMob(mob,function(err,reply){
+                                                if(err)
+                                                    console.log(JSON.stringify(err));
+                                            });
+                                            TinyMassive.KillPlayer(player, combat.zoneid);
+                                        }
+
+                                        battle = false;
+                                    }
+
+
+                                }
+//                                else
+//                                { console.log(battle[0].name + ' misses...');}
+                            }
+                            callback(err);
+                        });
+
+
+
+
+
+                    },function(err){
                         callback(null, 3);
-                    }, 100);
+                    });
                 }
             },
             function(err, results) {
                 if(err)
                     console.log('Game Loop Error: '+JSON.stringify(err));
-                console.log('Game Loop Results: '+JSON.stringify(results) + loops++);
+                console.log(loops++ + " Game Loops, completed in (" + (new Date().getTime() - stamp) + ")ms");
                 callback(err);
 
             });
