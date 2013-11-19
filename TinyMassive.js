@@ -322,6 +322,7 @@ var TinyMassive = {
                 console.log('PlayerWarp hgetall Error: '+JSON.stringify(err));
             else
             {
+                //TODO: Turn this into async series and gather errors
                 _this.client.hdel('PlayerPosition:'+warp.sourceid,playerKey);
                 _this.client.hset('PlayerPosition:'+warp.destid,playerKey,JSON.stringify({x:warp.destx,z:warp.destz}));
                 _this.client.hincrby('Zone:'+warp.sourceid, 'playing', -1);

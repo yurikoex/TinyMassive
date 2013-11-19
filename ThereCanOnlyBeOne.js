@@ -187,11 +187,11 @@ function GeneratePlayers(){
 
 
     TinyMassive.GetWorlds(true,function(worlds){
-        async.eachLimit(worlds,10,function(world,callback){
+        async.eachLimit(worlds,1,function(world,callback){
             TinyMassive.GetZones('Zone:'+world.value.id+'*',function(zones){
                 var starterZones = _.filter(zones,function(zone){ return zone.value.subzones>0; });
-                async.eachLimit(starterZones,10,function(zone,callback2){
-                    async.eachLimit(new Array(numPlayers),10,function(item,callback3){
+                async.eachLimit(starterZones,1,function(zone,callback2){
+                    async.eachLimit(new Array(numPlayers),1,function(item,callback3){
                         var player = TinyMassive.Player(names.player());
                         TinyMassive.UpdatePlayer(player,function(err,reply){
                             if(err)
@@ -268,7 +268,7 @@ function StartServer(){
                     //Move All Mobs
                     var mobsMoved = 0;
                     var playersMoved = 0;
-                    async.eachLimit(TinyMassive.kZones,1,function(zoneKey,cb){
+                    async.eachLimit(TinyMassive.kZones,10,function(zoneKey,cb){
                         TinyMassive.GetZoneByKey(zoneKey, function(zone){
                             var minWidth = 0;
                             var maxWidth = zone.Width;
@@ -294,15 +294,21 @@ function StartServer(){
                                     TinyMassive.GetMobPositions(zone.id,function(err,zonePositions){
                                         var props = [];
                                         for(var prop in zonePositions){props.push(prop);}
-                                        async.each(props,function(property,callback3){
+                                        async.eachSeries(props,function(property,callback3){
                                             var point = JSON.parse(zonePositions[property]);
                                             point.x = MinMaxWidth(TinyMassive.GetRandomInt(point.x-1,point.x+1));
                                             point.z = MinMaxHeight(TinyMassive.GetRandomInt(point.z-1,point.z+1));
 
                                             TinyMassive.UpdateMobPositionByField(property,zone.id,point,function(err,reply){
+                                                if(err){
+                                                    console.log(JSON.stringify(err));
+                                                }
                                                 callback3(err);
                                             });
                                         },function(err){
+                                            if(err){
+                                                console.log(JSON.stringify(err));
+                                            }
                                             callback2(err, 'mobs moved');
                                         });
                                     });
@@ -311,63 +317,83 @@ function StartServer(){
                                     TinyMassive.GetPlayerPositions(zone.id,function(err,zonePositions){
                                         var props = [];
                                         for(var prop in zonePositions){props.push(prop);}
-                                        async.each(props,function(property,callback5){
+                                        async.eachSeries(props,function(property,callback5){
                                             var point = JSON.parse(zonePositions[property]);
                                             point.x = MinMaxWidth(TinyMassive.GetRandomInt(point.x-1,point.x+1));
                                             point.z = MinMaxHeight(TinyMassive.GetRandomInt(point.z-1,point.z+1));
                                             playerPositions.push({zoneid:zone.id,playerKey:property,point:point});
                                             TinyMassive.UpdatePlayerPositionByField(property,zone.id,point,function(err,reply){
+                                                if(err){
+                                                    console.log(JSON.stringify(err));
+                                                }
                                                 callback5(err);
                                             });
                                         },function(err){
+                                            if(err){
+                                                console.log(JSON.stringify(err));
+                                            }
                                             callback4(err, 'players moved');
                                         });
                                     });
                                 }
                             ],
                             function(err){
+                                if(err){
+                                    console.log(JSON.stringify(err));
+                                }
                                 cb(err);
                             });
 
 
                         });
                     },function(err){
+                        if(err){
+                            console.log(JSON.stringify(err));
+                        }
                         callback1(err, 1);
                     });
                 },
 
                 WarpPlayers: function(callbackx){
-                    async.eachLimit(TinyMassive.kWarps,10,function(warpKey,callbackz){
-                        TinyMassive.GetWarpByKey(warpKey,function(err,warp){
-                            var matches = _.filter(playerPositions,function(player){
-                                if(warp.sourceid==player.zoneid &&
-                                    warp.sourcex==player.point.x &&
-                                    warp.sourcez==player.point.z){
-                                    return player;
-                                }
-                            });
-                            if(matches.length !=0)
-                            {
-                                async.each(matches,function(player,callbacka){
-                                    TinyMassive.PlayerUseWarp(player.playerKey,warp.id,function(err,reply){
-                                        callbacka(err);
-                                    },function(err){
-                                        callbackz(err);
-                                    });
-                                });
-                            }
-                            else
-                            {
-                                callbackz();
-                            }
-
-
-
-                        });
-                    },function(err){
-                        callbackx(err, 2);
-                    });
-
+//                    async.eachLimit(TinyMassive.kWarps,10,function(warpKey,callbackz){
+//                        TinyMassive.GetWarpByKey(warpKey,function(err,warp){
+//                            var matches = _.filter(playerPositions,function(player){
+//                                if(warp.sourceid==player.zoneid &&
+//                                    warp.sourcex==player.point.x &&
+//                                    warp.sourcez==player.point.z){
+//                                    return player;
+//                                }
+//                            });
+//                            if(matches.length !=0)
+//                            {
+//                                async.eachSeries(matches,function(player,callbacka){
+//                                    TinyMassive.PlayerUseWarp(player.playerKey,warp.id,function(err,reply){
+//                                        if(err){
+//                                            console.log(JSON.stringify(err));
+//                                        }
+//                                        callbacka(err);
+//                                    },function(err){
+//                                        if(err){
+//                                            console.log(JSON.stringify(err));
+//                                        }
+//                                        callbackz(err);
+//                                    });
+//                                });
+//                            }
+//                            else
+//                            {
+//                                callbackz();
+//                            }
+//
+//
+//
+//                        });
+//                    },function(err){
+//                        callbackx(err, 2);
+//                    });
+                    setTimeout(function(){
+                        callbackx(null, 2);
+                    }, 100);
                 },
                 Combat: function(callback){
                     setTimeout(function(){
