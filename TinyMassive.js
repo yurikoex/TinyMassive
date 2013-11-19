@@ -42,10 +42,33 @@ var TinyMassive = {
 
     //Public Methods
     Init : function(flush,callback){
-
+        var _this = this;
         this.client = redis.createClient();
 
         this.events = redis.createClient();
+        this.keyEvents = redis.createClient();
+
+        this.keyEvents.on("message", function(channel, message){
+            if(message.indexOf('World:')!=-1)
+                _this.kWorlds.push(message);
+            if(message.indexOf('Zone:')!=-1)
+                _this.kZones.push(message);
+            if(message.indexOf('Warp:')!=-1)
+                _this.kWarps.push(message);
+            if(message.indexOf('Player:')!=-1)
+                _this.kPlayers.push(message);
+            if(message.indexOf('Mob:')!=-1)
+                _this.kMobs.push(message);
+            if(message.indexOf('MobPosition:')!=-1)
+                _this.kMobPositions.push(message);
+            if(message.indexOf('PlayerPosition:')!=-1)
+                _this.kPlayerPositions.push(message);
+        });
+
+        this.keyEvents.subscribe("KeyAdded");
+
+        this.widLength = 10;
+
 
         if(flush)
             this.client.flushdb();
@@ -58,23 +81,137 @@ var TinyMassive = {
             callback();
         });
 
-        this.id = wid.NewWID(8);
+        this.id = wid.NewWID(this.widLength);
 
         this.worldsCreated = 0;
         this.zonesCreated = 0;
         this.playersCreated = 0;
         this.mobsCreated = 0;
 
+        this.KeyTypeEnum = {};
+        this.KeyTypeEnum.World = 'World:';
+        this.KeyTypeEnum.Zone = 'Zone:';
+        this.KeyTypeEnum.Warp = 'Warp:';
+        this.KeyTypeEnum.Player = 'Player:';
+        this.KeyTypeEnum.Mob = 'Mob:';
+        this.KeyTypeEnum.MobPosition = 'MobPosition:';
+        this.KeyTypeEnum.PlayerPosition = 'PlayerPosition:';
+
         this.kWorlds = [];
         this.kZones = [];
-        this.kStartZones = [];
         this.kWarps = [];
         this.kPlayers = [];
-        this.kMobPositons = [];
+        this.kMobs = [];
+        this.kMobPositions = [];
         this.kPlayerPositions = [];
+
+        this.GetExistingKeys(this.KeyTypeEnum.World,function(keys){
+            this.kWorlds = keys;
+        });
+        this.GetExistingKeys(this.KeyTypeEnum.Zone,function(keys){
+            this.kZones = keys;
+        });
+        this.GetExistingKeys(this.KeyTypeEnum.Warp,function(keys){
+            this.kWarps = keys;
+        });
+        this.GetExistingKeys(this.KeyTypeEnum.Player,function(keys){
+            this.kPlayers = keys;
+        });
+        this.GetExistingKeys(this.KeyTypeEnum.Mob,function(keys){
+            this.kMobs = keys;
+        });
+        this.GetExistingKeys(this.KeyTypeEnum.MobPosition,function(keys){
+            this.kMobPositions = keys;
+        });
+        this.GetExistingKeys(this.KeyTypeEnum.PlayerPosition,function(keys){
+            this.kPlayerPositions = keys;
+        });
+
+
+        this.kStartZones = [];
+    },
+    GenerateWid : function(parentId,keyType){
+        var w = '';
+        while(w==''){
+            var tempWid = wid.NewWID(this.widLength);
+            if(!_.some(this.GetWidsFromKeyType(keyType),function(key){
+                if(parentId)
+                    return key==(keyType+parentId+'_'+tempWid);
+                else
+                    return key==(keyType+'_'+tempWid);
+                })){
+                w=tempWid;
+                return w;
+            }
+        }
+    },
+    GetWidsFromKeyType : function (keyType){
+        switch(keyType)
+        {
+            case 'World:':
+                return this.kWorlds;
+                break;
+            case 'Zone:':
+                return this.kZones;
+                break;
+            case 'Warp:':
+                return this.kWarps;
+                break;
+            case 'Player:':
+                return this.kPlayers;
+                break;
+            case 'Mob:':
+                return this.kMobs;
+                break;
+            case 'MobPosition:':
+                return this.kMobPositions;
+                break;
+            case 'PlayerPosition:':
+                return this.kPlayerPositions;
+                break;
+            default:
+                return null;
+        }
+    },
+    AddToKeys : function (keyType,key){
+        switch(keyType)
+        {
+            case 'World:':
+                this.kWorlds.push(key);
+                break;
+            case 'Zone:':
+                this.kZones.push(key);
+                break;
+            case 'Warp:':
+                this.kWarps.push(key);
+                break;
+            case 'Player:':
+                this.kPlayers.push(key);
+                break;
+            case 'Mob:':
+                this.kMobs.push(key);
+                break;
+            case 'MobPosition:':
+                this.kMobPositions.push(key);
+                break;
+            case 'PlayerPosition:':
+                this.kPlayerPositions.push(key);
+                break;
+        }
+    },
+    GetExistingKeys: function(keyPattern, callback){
+        this.client.keys(keyPattern+'*',function(err,keys){
+            if(err)
+                console.log(method+' Keys Error: '+JSON.stringify(err));
+            else
+            {
+                callback(keys);
+            }
+        });
     },
     World : function(name){
-        var id = wid.NewWID(8);
+        var id = this.GenerateWid(null,this.KeyTypeEnum.World);
+        this.client.publish('KeyAdded',this.KeyTypeEnum.World+id);
         id = this.id + '_' + id;
         this.client.incr("Worlds");
         var name = name || names.world();
@@ -86,9 +223,11 @@ var TinyMassive = {
         };
     },
     Zone : function(parentId, name){
-        var id = wid.NewWID(8);
+        var id = this.GenerateWid(parentId,this.KeyTypeEnum.Zone);
+
         this.client.incr("Zones");
         id = parentId + '_' + id;
+        this.client.publish('KeyAdded',this.KeyTypeEnum.Zone+id);
         var name = name || names.zone();
         return {
             id : id,
@@ -101,7 +240,9 @@ var TinyMassive = {
         };
     },
     Warp : function(source,dest){
-        var id = wid.NewWID(8);
+        var id = this.GenerateWid(null,this.KeyTypeEnum.Warp);
+        this.client.publish('KeyAdded',this.KeyTypeEnum.Warp+id);
+
         this.client.incr("Warps");
         return {
             id : id,
@@ -114,7 +255,9 @@ var TinyMassive = {
         }
     },
     Player : function(name){
-        var id = wid.NewWID(8);
+        var id = this.GenerateWid(null,this.KeyTypeEnum.Player);
+        this.client.publish('KeyAdded',this.KeyTypeEnum.Player+id);
+
         this.client.incr("Players");
         var name = name || 'Unnamed Player '+id;
         return {
@@ -128,7 +271,9 @@ var TinyMassive = {
         };
     },
     Mob : function(name){
-        var id = wid.NewWID(8);
+        var id = this.GenerateWid(null,this.KeyTypeEnum.Mob);
+        this.client.publish('KeyAdded',this.KeyTypeEnum.Mob+id);
+
         this.client.incr("Mobs");
         var name = name || 'Unnamed Mob '+id;
         return {
@@ -158,41 +303,63 @@ var TinyMassive = {
     GetZones : function(keyPattern,callback){
         this._getHashesFromKeyPattern('GetZones',keyPattern,callback);
     },
+    GetZoneByKey : function(zoneKey,callback){
+        this._getHashFromKey("GetZone",zoneKey,callback);
+    },
     UpdateWarp : function(warp,callback){
         this.client.hmset('Warp:'+warp.id,warp,callback);
+    },
+    GetWarpByKey : function(warpKey,callback){
+        this.client.hgetall(warpKey,callback);
     },
     UpdateZone : function(zone,callback){
         this.client.hmset('Zone:'+zone.id,zone,callback);
     },
-    PlayerUseWarp : function(playerId,warpId,callback){
+    PlayerUseWarp : function(playerKey,warpId){
         var _this = this;
         this.client.hgetall('Warp:'+warpId,function(err,warp){
             if(err)
                 console.log('PlayerWarp hgetall Error: '+JSON.stringify(err));
             else
             {
-                _this.client.hdel('PlayerPosition:'+warp.sourceid,'Player:'+playerId);
-                _this.client.hset('PlayerPosition:'+warp.destid,'Player:'+playerId,JSON.stringify({x:warp.destx,z:warp.destz}));
+                _this.client.hdel('PlayerPosition:'+warp.sourceid,playerKey);
+                _this.client.hset('PlayerPosition:'+warp.destid,playerKey,JSON.stringify({x:warp.destx,z:warp.destz}));
                 _this.client.hincrby('Zone:'+warp.sourceid, 'playing', -1);
                 _this.client.hincrby('Zone:'+warp.destid, 'playing', 1);
-                _this.client.hset('Player:'+playerId, 'zone', 'Zone:'+warp.destid);
+                _this.client.hset(playerKey, 'zone', 'Zone:'+warp.destid);
             }
         });
     },
     UpdatePlayerPosition : function(playerId,zoneId,point,callback){
         this.client.hset('PlayerPosition:'+zoneId,'Player:'+playerId,JSON.stringify(point),callback);
     },
+    UpdatePlayerPositionByField : function(playerId,zoneId,point,callback){
+        this.client.hset('PlayerPosition:'+zoneId,playerId,JSON.stringify(point),callback);
+    },
     GetPlayerPosition : function(playerId,zoneId,callback){
         this.client.hget('PlayerPosition:'+zoneId,'Player:'+playerId,function(err,reply){
             callback(err,JSON.parse(reply));
         });
     },
+    GetPlayerPositions : function(zoneId,callback){
+        this.client.hgetall('PlayerPosition:'+zoneId,function(err,reply){
+            callback(err,reply);
+        });
+    },
     UpdateMobPosition : function(mobId,zoneId,point,callback){
-        this.client.hset('MobPosition:'+zoneId,'Player:'+mobId,JSON.stringify(point),callback);
+        this.client.hset('MobPosition:'+zoneId,'Mob:'+mobId,JSON.stringify(point),callback);
+    },
+    UpdateMobPositionByField : function(mobId,zoneId,point,callback){
+        this.client.hset('MobPosition:'+zoneId,mobId,JSON.stringify(point),callback);
     },
     GetMobPosition : function(mobId,zoneId,callback){
-        this.client.hget('MobPosition:'+zoneId,'Player:'+mobId,function(err,reply){
+        this.client.hget('MobPosition:'+zoneId,'Mob:'+mobId,function(err,reply){
             callback(err,JSON.parse(reply));
+        });
+    },
+    GetMobPositions : function(zoneId,callback){
+        this.client.hgetall('MobPosition:'+zoneId,function(err,reply){
+            callback(err,reply);
         });
     },
     UpdatePlayer : function(player,callback){
@@ -207,6 +374,9 @@ var TinyMassive = {
     GetPlayers : function(callback){
         var keyPattern = 'Player:*';
         this._getHashesFromKeyPattern('GetPlayers',keyPattern,callback);
+    },
+    GetRandomInt : function(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 };
 

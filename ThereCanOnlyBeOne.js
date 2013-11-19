@@ -7,7 +7,6 @@ var TinyMassive = require('./TinyMassive');
 var _ = require('underscore');
 var async = require('async');
 var names = require('./namegenerator').load(_);
-var wid = require('wid');
 
 var numPlayers = 10;
 var numZones = 10;
@@ -215,6 +214,17 @@ function GeneratePlayers(){
                                                 console.log('Update Zone Error: '+JSON.stringify(err2));
                                             callback4(err2);
                                         });
+                                    },
+                                    function(callback5){
+                                        zone.value.playing++;
+                                        TinyMassive.UpdatePlayerPosition(player.id,zone.value.id,{
+                                            x:Math.floor(Math.random() * (100 - 0 + 1) + 0),
+                                            z:Math.floor(Math.random() * (100 - 0 + 1) + 0)
+                                        },function(err3,reply3){
+                                            if(err3)
+                                                console.log('Update Player Position Error: '+JSON.stringify(err3));
+                                            callback5(err3);
+                                        });
                                     }
                                 ], callback3);
                             }
@@ -249,17 +259,115 @@ function StartServer(){
     TinyMassive.events.unsubscribe("Loading:"+TinyMassive.id);
 
     //Game Loop to sim play
+    var loops = 0;
     async.forever(function(callback){
+        var playerPositions = [];
         async.series({
-                MoveMobs: function(callback){
-                    setTimeout(function(){
-                        callback(null, 1);
-                    }, 100);
+                Move: function(callback1){
+
+                    //Move All Mobs
+                    var mobsMoved = 0;
+                    var playersMoved = 0;
+                    async.eachLimit(TinyMassive.kZones,1,function(zoneKey,cb){
+                        TinyMassive.GetZoneByKey(zoneKey, function(zone){
+                            var minWidth = 0;
+                            var maxWidth = zone.Width;
+                            var minHeight = 0;
+                            var maxHeight = zone.Height;
+                            function MinMaxHeight(num){
+                                if(num>maxHeight)
+                                    return maxHeight;
+                                if(num<minHeight)
+                                    return minHeight;
+                                return num;
+                            };
+                            function MinMaxWidth(num){
+                                if(num>maxWidth)
+                                    return maxHeight;
+                                if(num<minHeight)
+                                    return minWidth;
+                                return num;
+                            };
+
+                            async.series([
+                                function(callback2){
+                                    TinyMassive.GetMobPositions(zone.id,function(err,zonePositions){
+                                        var props = [];
+                                        for(var prop in zonePositions){props.push(prop);}
+                                        async.each(props,function(property,callback3){
+                                            var point = JSON.parse(zonePositions[property]);
+                                            point.x = MinMaxWidth(TinyMassive.GetRandomInt(point.x-1,point.x+1));
+                                            point.z = MinMaxHeight(TinyMassive.GetRandomInt(point.z-1,point.z+1));
+
+                                            TinyMassive.UpdateMobPositionByField(property,zone.id,point,function(err,reply){
+                                                callback3(err);
+                                            });
+                                        },function(err){
+                                            callback2(err, 'mobs moved');
+                                        });
+                                    });
+                                },
+                                function(callback4){
+                                    TinyMassive.GetPlayerPositions(zone.id,function(err,zonePositions){
+                                        var props = [];
+                                        for(var prop in zonePositions){props.push(prop);}
+                                        async.each(props,function(property,callback5){
+                                            var point = JSON.parse(zonePositions[property]);
+                                            point.x = MinMaxWidth(TinyMassive.GetRandomInt(point.x-1,point.x+1));
+                                            point.z = MinMaxHeight(TinyMassive.GetRandomInt(point.z-1,point.z+1));
+                                            playerPositions.push({zoneid:zone.id,playerKey:property,point:point});
+                                            TinyMassive.UpdatePlayerPositionByField(property,zone.id,point,function(err,reply){
+                                                callback5(err);
+                                            });
+                                        },function(err){
+                                            callback4(err, 'players moved');
+                                        });
+                                    });
+                                }
+                            ],
+                            function(err){
+                                cb(err);
+                            });
+
+
+                        });
+                    },function(err){
+                        callback1(err, 1);
+                    });
                 },
-                MovePlayers: function(callback){
-                    setTimeout(function(){
-                        callback(null, 2);
-                    }, 100);
+
+                WarpPlayers: function(callbackx){
+                    async.eachLimit(TinyMassive.kWarps,10,function(warpKey,callbackz){
+                        TinyMassive.GetWarpByKey(warpKey,function(err,warp){
+                            var matches = _.filter(playerPositions,function(player){
+                                if(warp.sourceid==player.zoneid &&
+                                    warp.sourcex==player.point.x &&
+                                    warp.sourcez==player.point.z){
+                                    return player;
+                                }
+                            });
+                            if(matches.length !=0)
+                            {
+                                async.each(matches,function(player,callbacka){
+                                    TinyMassive.PlayerUseWarp(player.playerKey,warp.id,function(err,reply){
+                                        callbacka(err);
+                                    },function(err){
+                                        callbackz(err);
+                                    });
+                                });
+                            }
+                            else
+                            {
+                                callbackz();
+                            }
+
+
+
+                        });
+                    },function(err){
+                        callbackx(err, 2);
+                    });
+
                 },
                 Combat: function(callback){
                     setTimeout(function(){
@@ -270,7 +378,7 @@ function StartServer(){
             function(err, results) {
                 if(err)
                     console.log('Game Loop Error: '+JSON.stringify(err));
-                console.log('Game Loop Results: '+JSON.stringify(results));
+                console.log('Game Loop Results: '+JSON.stringify(results) + loops++);
                 callback(err);
 
             });
