@@ -271,8 +271,6 @@ function StartServer(){
                     var pmoves =0;
                     var mmoves =0;
                     //Move All Mobs
-                    var mobsMoved = 0;
-                    var playersMoved = 0;
                     async.eachLimit(TinyMassive.kZones,10,function(zoneKey,cb){
                         TinyMassive.GetZoneByKey(zoneKey, function(zone){
                             var minWidth = 0;
@@ -476,14 +474,14 @@ function StartServer(){
                                         damage = TinyMassive.GetRandomInt(1,battle[0].attack);
                                     if(damage>fightResults.biggestHit)
                                         fightResults.biggestHit=damage;
-                                    fightResults.results.push(battle[0].name + ' hit ' + battle[1].name+ ' for '+damage + ' damage');
+                                    fightResults.results.push(TinyMassive.LevelName(battle[0].level) +' '+battle[0].name + ' hit ' + TinyMassive.LevelName(battle[0].level) +' '+ battle[1].name+ ' for '+damage + ' damage');
                                     if(CombatEngine.hit(damage,battle[1]))
                                     {
                                         fightResults.level = battle[0].level;
                                         fightResults.winner = battle[0];
-                                        fightResults.results.push('Level '+battle[0].level +' '+ battle[0].name + ' killed '+'Level '+battle[1].level +' '+ battle[1].name);
+                                        fightResults.results.push(TinyMassive.LevelName(battle[0].level) +' '+ battle[0].name + ' killed '+TinyMassive.LevelName(battle[1].level) +' '+ battle[1].name);
                                         if(combat.playerKey.indexOf(battle[0].id)!=-1){
-                                            fightResults.results.push(battle[1].exp +'exp received!');
+                                            fightResults.results.push(battle[1].exp +' exp received!');
                                             TinyMassive.LevelUpPlayer(player,mob,function(err,reply){
                                                 if(err)
                                                 console.log(JSON.stringify(err));
@@ -499,7 +497,7 @@ function StartServer(){
                                         }
                                         battle = false;
                                     }else{
-                                        fightResults.results.push(battle[0].name + ' misses...');
+                                        fightResults.results.push(TinyMassive.LevelName(battle[0].level) +' '+battle[0].name + ' misses...');
                                     }
                                 }
                             }
@@ -555,5 +553,3 @@ function SpinupServer(){
 
     TinyMassive.events.subscribe("Loading:"+TinyMassive.id);
 };
-
-

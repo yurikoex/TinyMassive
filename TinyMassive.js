@@ -286,7 +286,7 @@ var TinyMassive = {
             id : id,
             name : name,
             level : 1,
-            exp : 0,
+            exp : 1,
             attack : 1,
             defense : 1,
             health : 1
@@ -412,7 +412,7 @@ var TinyMassive = {
         player.health++;
         player.attack++;
         player.defense++;
-        player.exp = player.exp + mob.exp;
+        player.exp = parseInt(player.exp)+parseInt(mob.exp);
         this.UpdatePlayer(player,callback);
 
     },
@@ -439,6 +439,18 @@ var TinyMassive = {
     },
     GetRandomInt : function(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
+    },
+    LevelName : function(level){
+        var title = [];
+        title.push('Novice');
+        title.push('Journeyman');
+        title.push('Master');
+        title.push('Grand Master');
+        title.push('Lord');
+        title.push('Demigod');
+        title.push('God');
+        return title[Math.floor(level/10)];
+
     }
 };
 

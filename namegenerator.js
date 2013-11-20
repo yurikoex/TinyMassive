@@ -468,6 +468,46 @@ exports.load = function(_) {
         return FullName;
     }
 
+    function MonsterName(){
+        return _.shuffle([
+            'Goblin',
+            'Kobold',
+            'Bandit',
+            'Orc',
+            'Ogre',
+            'Ronin',
+            'Mermaider',
+            'Rogue Wizard',
+            'Rogue',
+            'Thief',
+            'Burglar',
+            'Outlaw',
+            'Dark Elf',
+            'Titan',
+            'Giant',
+            'Phantom',
+            'Shadow',
+            'Wight',
+            'Wereboar',
+            'Werewolf',
+            'Dire Bear',
+            'Dire Wolf',
+            'Vampire',
+            'Dark Priest',
+            'Demon',
+            'Darkling',
+            'Basilisk',
+            'Lizard',
+            'Bunny',
+            'Sprite',
+            'Pixie',
+            'Faerie',
+            'Spawn',
+            'Worg',
+            'Turtle'
+        ])[0];
+    }
+
     return  {
         newWordId:function () {
             return Name('a').replace(' ','');
@@ -476,7 +516,7 @@ exports.load = function(_) {
             return Name(gender);
         },
         mob:function (gender) {
-            return Name(gender);
+            return MonsterName();
         },
         world: function(){
             return World();
